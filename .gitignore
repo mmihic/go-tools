@@ -1,0 +1,31 @@
+*~
+*.out
+*.test
+*.xml
+*.swp
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.cov
+*.tmp
+.DS_Store
+test.log
+*.log
+*.pyc
+
+
+# vendored
+vendor/
+
+# Build binaries
+bin/
+
+# retool dependencies
+_tools/
+
+# Coverage imports
+coverage_imports.go
+coverage/
+
