@@ -69,7 +69,7 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			pkgalign.RewritePostMove(pkg, []*pkgalign.RewriteRule{
+			pkgalign.Rewrite(pkg, []*pkgalign.RewriteRule{
 				{
 					From:    fromPath,
 					To:      toPath,
