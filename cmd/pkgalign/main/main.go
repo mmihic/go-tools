@@ -26,13 +26,11 @@ const (
 )
 
 var (
-	pkgName  string
 	fromPath string
 	toPath   string
 )
 
 func main() {
-	flag.StringVar(&pkgName, "name", "", "the name of the package")
 	flag.StringVar(&fromPath, "from", "", "the original package path")
 	flag.StringVar(&toPath, "to", "", "the new package path")
 	flag.Parse()
@@ -71,9 +69,8 @@ func main() {
 			defer wg.Done()
 			pkgalign.Rewrite(pkg, []*pkgalign.RewriteRule{
 				{
-					From:    fromPath,
-					To:      toPath,
-					PkgName: pkgName,
+					From: fromPath,
+					To:   toPath,
 				},
 			})
 		}()
