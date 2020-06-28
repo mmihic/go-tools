@@ -12,8 +12,8 @@ import (
 	"go/ast"
 	"go/format"
 	"go/token"
+	"io/ioutil"
 	"log"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -59,8 +59,13 @@ func processRule(pkg *packages.Package, f *ast.File, rule *RewriteRule) bool {
 
 func rewritePackage(pkg *packages.Package, f *ast.File, rule *RewriteRule) bool {
 	// Change package decl
+	newName := rule.PkgName
+	if newName == "" {
+		_, newName = filepath.Split(rule.To)
+	}
+
 	oldName := pkg.Name
-	f.Name.Name = rule.PkgName
+	f.Name.Name = newName
 
 	// Rewrite the package comments, if any
 	for _, cg := range f.Comments {
@@ -68,14 +73,14 @@ func rewritePackage(pkg *packages.Package, f *ast.File, rule *RewriteRule) bool 
 		lineCommentPrefix := fmt.Sprintf(`// Package %s `, oldName)
 		if strings.HasPrefix(c.Text, lineCommentPrefix) {
 			remaining := c.Text[len(lineCommentPrefix):]
-			c.Text = fmt.Sprintf(`// Package %s %s`, rule.PkgName, remaining)
+			c.Text = fmt.Sprintf(`// Package %s %s`, newName, remaining)
 			break
 		}
 
 		blockCommentPrefix := fmt.Sprintf(`/* Package %s `, oldName)
 		if strings.HasPrefix(c.Text, blockCommentPrefix) {
 			remaining := c.Text[len(blockCommentPrefix):]
-			c.Text = fmt.Sprintf(`/* Package %s %s`, rule.PkgName, remaining)
+			c.Text = fmt.Sprintf(`/* Package %s %s`, newName, remaining)
 			break
 		}
 	}
@@ -84,6 +89,11 @@ func rewritePackage(pkg *packages.Package, f *ast.File, rule *RewriteRule) bool 
 }
 
 func rewriteImport(f *ast.File, rule *RewriteRule) bool {
+	newName := rule.PkgName
+	if newName == "" {
+		_, newName = filepath.Split(rule.To)
+	}
+
 	for _, imp := range f.Imports {
 		path, _ := strconv.Unquote(imp.Path.Value)
 		if path != rule.From {
@@ -92,9 +102,8 @@ func rewriteImport(f *ast.File, rule *RewriteRule) bool {
 
 		imp.Path.Value = strconv.Quote(rule.To)
 		if imp.Name == nil {
-			// They are using the default name, not an alias, so rewrite all references
-			// using that name
-			rewriteRefs(f, filepath.Base(rule.From), rule.PkgName)
+			// They are using the default name, not an alias, so rewrite all references using that name
+			rewriteRefs(f, filepath.Base(rule.From), newName)
 		}
 		return true
 	}
@@ -116,9 +125,7 @@ func rewriteRefs(f *ast.File, oldName, newName string) {
 }
 
 var writeFile = func(filename string, content []byte) error {
-	_, err := os.Stdout.Write(content)
-	return err
-	// return ioutil.WriteFile(filename, content, 0644)
+	return ioutil.WriteFile(filename, content, 0644)
 }
 
 func write(fset *token.FileSet, f *ast.File) {
