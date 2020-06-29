@@ -28,10 +28,8 @@ func (cmd *runCmd) Run() error {
 		return err
 	}
 
-	fmt.Println(string(contents))
-
 	type config struct {
-		Rules []*pkgalign.RewriteRule `yaml:"packages"`
+		Rules []string `yaml:"packages"`
 	}
 
 	var cfg config
@@ -39,8 +37,10 @@ func (cmd *runCmd) Run() error {
 		return fmt.Errorf("unable to parse config: %v", err)
 	}
 
-	for _, rule := range cfg.Rules {
-		rule.To, rule.From = filepath.Join(cmd.LocalPkgRoot, rule.To), filepath.Join(cmd.LocalPkgRoot, rule.From)
+	pathPrefix := pkgalign.NewPath(cmd.LocalPkgRoot)
+	rules, err := pkgalign.ParseRewriteRules(pathPrefix, cfg.Rules)
+	if err != nil {
+		return err
 	}
 
 	var dirs []string
@@ -72,7 +72,7 @@ func (cmd *runCmd) Run() error {
 
 			for _, pkg := range pkgs {
 				pkgPath := filepath.Join(cmd.LocalPkgRoot, dir)
-				pkgalign.Rewrite(fset, pkgPath, pkg, cfg.Rules)
+				pkgalign.Rewrite(fset, pkgPath, pkg, rules)
 			}
 		}()
 	}

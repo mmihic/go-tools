@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRewritePostMove(t *testing.T) {
@@ -16,7 +15,7 @@ func TestRewritePostMove(t *testing.T) {
 		name    string
 		pkgPath string
 		src     string
-		rules   []*RewriteRule
+		rules   []string
 		want    string
 	}{
 		// ----------------
@@ -31,11 +30,8 @@ package first
 
 func DoSomething() string { return "does something" }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -59,11 +55,8 @@ package first
 
 func DoSomething() string { return "does something" }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -89,11 +82,8 @@ import (
 
 func DoSomething() string { return first.DoSomething() }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -109,7 +99,8 @@ func DoSomething() string { return other.DoSomething() }
 
 		// ----------------
 		{
-			name:    "picks best match",
+			name:
+			"picks best match",
 			pkgPath: "github.com/mmihic/go-tools/pkg/imports",
 			src: `
 // +build tools
@@ -125,15 +116,9 @@ func DoSomething() string { return something.Do() }
 func DoSomethingFirst() string { return first.DoSomething() }
 func DoSomethingElise() string { return elise.DoSomething() }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first/something"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/newpkg"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
+				"github.com/mmihic/go-tools/pkg/first/something:github.com/mmihic/go-tools/pkg/newpkg",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -153,7 +138,8 @@ func DoSomethingElise() string { return elise.DoSomething() }
 
 		// ----------------
 		{
-			name:    "rewrite imported package when importing package has same name as imported package",
+			name:
+			"rewrite imported package when importing package has same name as imported package",
 			pkgPath: "github.com/mmihic/go-tools/tools/first",
 			src: `
 // +build tools
@@ -165,11 +151,8 @@ import (
 
 func DoSomething() string { return first.DoSomething() }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -185,7 +168,8 @@ func DoSomething() string { return other.DoSomething() }
 
 		// ----------------
 		{
-			name:    "rewrite imported package with conflicts",
+			name:
+			"rewrite imported package with conflicts",
 			pkgPath: "github.com/mmihic/go-tools/tools/main",
 			src: `
 // +build tools
@@ -198,11 +182,8 @@ import (
 
 func DoSomething() string { return first.DoSomething() }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -219,7 +200,8 @@ func DoSomething() string { return other2.DoSomething() }
 
 		// ----------------
 		{
-			name:    "rewrite imported package with multiple conflicts",
+			name:
+			"rewrite imported package with multiple conflicts",
 			pkgPath: "github.com/mmihic/go-tools/tools/main",
 			src: `
 // +build tools
@@ -233,11 +215,8 @@ import (
 
 func DoSomething() string { return first.DoSomething() }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -255,7 +234,8 @@ func DoSomething() string { return other3.DoSomething() }
 
 		// ----------------
 		{
-			name:    "rewrite imported package with cross conflicts",
+			name:
+			"rewrite imported package with cross conflicts",
 			pkgPath: "github.com/mmihic/go-tools/tools/main",
 			src: `
 // +build tools
@@ -269,15 +249,9 @@ import (
 func DoSomethingFirst() string  { return first.DoSomething() }
 func DoSomethingSecond() string { return second.DoSomething() }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/other"),
-				},
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/second"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/second/other"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
+				"github.com/mmihic/go-tools/pkg/second:github.com/mmihic/go-tools/pkg/second/other",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -285,17 +259,18 @@ package main
 
 import (
 	"github.com/mmihic/go-tools/pkg/other"
-	other2 "github.com/mmihic/go-tools/pkg/second/other"
+	secondother "github.com/mmihic/go-tools/pkg/second/other"
 )
 
 func DoSomethingFirst() string  { return other.DoSomething() }
-func DoSomethingSecond() string { return other2.DoSomething() }
+func DoSomethingSecond() string { return secondother.DoSomething() }
 `, "\n"),
 		},
 
 		// ----------------
 		{
-			name:    "rewritten imported package already imported",
+			name:
+			"rewritten imported package already imported",
 			pkgPath: "github.com/mmihic/go-tools/tools/main",
 			src: `
 // +build tools
@@ -309,11 +284,8 @@ import (
 func DoSomethingFirst() string  { return first.DoSomething() }
 func DoSomethingSecond() string { return second.DoSomething() }
 `,
-			rules: []*RewriteRule{
-				{
-					From: NewPath("github.com/mmihic/go-tools/pkg/first"),
-					To:   NewPath("github.com/mmihic/go-tools/pkg/second"),
-				},
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/second",
 			},
 			want: strings.TrimLeft(`
 // +build tools
@@ -331,10 +303,17 @@ func DoSomethingSecond() string { return second.DoSomething() }
 		t.Run(tt.name, func(_ *testing.T) {
 			fset := token.NewFileSet()
 			file, err := parser.ParseFile(fset, "", tt.src, parser.ParseComments)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			rules, err := ParseRewriteRules(nil, tt.rules)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			var buf bytes.Buffer
-			rewriteFile(fset, tt.pkgPath, file, tt.rules, func(filename string, content []byte) error {
+			rewriteFile(fset, tt.pkgPath, file, rules, func(filename string, content []byte) error {
 				_, err := buf.Write(content)
 				return err
 			})

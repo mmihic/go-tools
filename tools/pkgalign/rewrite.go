@@ -121,12 +121,17 @@ func rewriteImports(f *ast.File, rules RewriteRules) bool {
 		imp.Path.Value = strconv.Quote(rewrittenPath.String())
 
 		newName := disambiguateImportName(f.Imports, rewrittenPath)
-		if newName != rewrittenPath.PkgName() {
+		if newName == rewrittenPath.PkgName() {
+			// Can just rely on the default package name
+			imp.Name = nil
+		} else {
 			// we need to use an alias to disambiguate
 			imp.Name = &ast.Ident{
 				Name: newName,
 			}
 		}
+
+		fmt.Printf("rewriting %30s to %30s as %s\n", importPath, rewrittenPath, newName)
 		rewriteRefs(f, oldName, newName)
 		changed = true
 	}
@@ -159,16 +164,25 @@ func disambiguateImportName(imports []*ast.ImportSpec, importPath Path) string {
 		return importPath.Equal(p)
 	})
 
-	var (
-		name = importPath.PkgName()
-		n    = 2
-	)
+	// Try the raw name
+	if _, conflicts := importedPkgNames[importPath.PkgName()]; !conflicts {
+		return importPath.PkgName()
+	}
 
+	// Try the name combined with the parent if the parent isn't something generic like internal or pkg
+	if parentName := importPath[len(importPath)-2]; parentName != "pkg" && parentName != "internal" {
+		nameWithParent := fmt.Sprintf("%s%s", parentName, importPath.PkgName())
+		if _, conflicts := importedPkgNames[nameWithParent]; !conflicts {
+			return nameWithParent
+		}
+	}
+
+	n := 2
 	for {
+		name := fmt.Sprintf("%s%d", importPath.PkgName(), n)
 		if _, conflicts := importedPkgNames[name]; !conflicts {
 			return name
 		}
-		name = fmt.Sprintf("%s%d", importPath.PkgName(), n)
 		n++
 	}
 }

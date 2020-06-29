@@ -19,3 +19,12 @@ func TestPath_Equal(t *testing.T) {
 	assert.False(t, p.Equal(NewPath("github.com/mmihic/go-tools/tools")))
 	assert.False(t, p.Equal(NewPath("github.com/mmihic/go-tools/tools/pkgalign/nested")))
 }
+
+func TestPath_Append(t *testing.T) {
+	assert.Equal(t,
+		NewPath("github.com/mmihic").Append(NewPath("tools/pkgalign")),
+		NewPath("github.com/mmihic/go-tools/tools/pkgalign"))
+	assert.Equal(t,
+		NewPath("").Append(NewPath("github.com/mmihic/go-tools/tools/pkgalign")),
+		NewPath("github.com/mmihic/go-tools/tools/pkgalign"))
+}

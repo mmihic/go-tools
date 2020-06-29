@@ -13,6 +13,13 @@ func NewPath(s string) Path {
 	return strings.Split(s, "/")
 }
 
+// Append extends one path with another.
+func (p Path) Append(other Path) Path {
+	newPath := append(Path{}, p...)
+	newPath = append(newPath, other...)
+	return newPath
+}
+
 // String returns a string form of the path matcher.
 func (p Path) String() string {
 	return filepath.Join(p...)

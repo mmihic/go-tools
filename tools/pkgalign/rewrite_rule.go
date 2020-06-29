@@ -13,15 +13,24 @@ type RewriteRule struct {
 }
 
 // ParseRewriteRule parses a rewrite rule.
-func ParseRewriteRule(s string) (*RewriteRule, error) {
+func ParseRewriteRule(pathPrefix Path, s string) (*RewriteRule, error) {
 	parts := strings.Split(s, ":")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid rewrite rule %s", s)
 	}
 
+	var (
+		from = NewPath(parts[0])
+		to   = NewPath(parts[1])
+	)
+	if len(pathPrefix) != 0 {
+		from = pathPrefix.Append(from)
+		to = pathPrefix.Append(to)
+	}
+
 	return &RewriteRule{
-		From: NewPath(parts[0]),
-		To:   NewPath(parts[1]),
+		From: from,
+		To:   to,
 	}, nil
 }
 
@@ -37,13 +46,29 @@ func (rule *RewriteRule) Rewrite(path Path) (Path, error) {
 		return nil, fmt.Errorf("%s does not contain %s", rule.From, path)
 	}
 
-	newPath := append(Path{}, rule.To...)
-	newPath = append(newPath, path[len(rule.From):]...)
-	return newPath, nil
+	return rule.To.Append(path[len(rule.From):]), nil
 }
 
 // RewriteRules is a list of rewrite rules.
 type RewriteRules []*RewriteRule
+
+// ParseRewriteRules parses a set of rewrite rules.
+func ParseRewriteRules(pathPrefix Path, rulesList []string) (RewriteRules, error) {
+	rules := make(RewriteRules, 0, len(rulesList))
+	for _, r := range rulesList {
+		rule, err := ParseRewriteRule(pathPrefix, r)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Printf("adding rule %s\n", rule)
+
+		rules = append(rules, rule)
+	}
+
+	sort.Sort(rules)
+	return rules, nil
+}
 
 // Len returns the number of rules.
 func (rules RewriteRules) Len() int { return len(rules) }
@@ -93,4 +118,3 @@ func (rules RewriteRules) ExactMatch(p Path) *RewriteRule {
 
 	return nil
 }
-
