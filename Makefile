@@ -42,6 +42,10 @@ define TOOL_RULES
 $(TOOL): setup
 	@echo "--- Building $(TOOL)"
 	go build -tags "$(GO_BUILD_TAGS_LIST)" -o $(BUILD)/$(TOOL) ./cmd/$(TOOL)/main/.
+
+.PHONY: install-$(TOOL)
+install-$(TOOL): $(TOOL)
+	cp $(BUILD)/$(TOOL) $(HOME)/bin
 endef
 
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
@@ -65,13 +69,6 @@ test: test-base
 test-cover: test
 	$(tools_bin_path)/gocov convert cover.out | $(tools_bin_path)/gocov report > coverage_report.out
 
-# If running in CI, output sanitized coverage results as a PR comment.
-.PHONY: test-ci-cover
-test-ci-cover: install-tools test-cover
-	@echo "--- :golang: Uploading test coverage results"
-	PATH=$(realpath $(tools_bin_path)):$(PATH) .buildkite/scripts/pr_coverage_comment.sh
-
-
 .PHONY: go-mod-tidy
 go-mod-tidy:
 	@echo "--- :golang: tidying modules"
@@ -82,5 +79,9 @@ lint: export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
 lint: install-tools
 	@echo "--- :golang: Running linters"
 	$(tools_bin_path)/golangci-lint run
+
+.PHONY: install
+
+
 
 .DEFAULT_GOAL := all
