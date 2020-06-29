@@ -17,11 +17,13 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
+
+	"github.com/mmihic/go-tools/pkg/path"
 )
 
 // Rewrite rewrites a file to deal with the move of a package from one
 // location to another, along with a possible package rename.
-func Rewrite(fset *token.FileSet, pkgPath Path, pkg *ast.Package, rules RewriteRules) {
+func Rewrite(fset *token.FileSet, pkgPath path.Path, pkg *ast.Package, rules RewriteRules) {
 	files := make([]*ast.File, 0, len(pkg.Files))
 	for _, file := range pkg.Files {
 		files = append(files, file)
@@ -34,7 +36,7 @@ func Rewrite(fset *token.FileSet, pkgPath Path, pkg *ast.Package, rules RewriteR
 
 func rewriteFiles(
 	fset *token.FileSet,
-	pkgPath Path,
+	pkgPath path.Path,
 	files []*ast.File,
 	rules RewriteRules,
 	writeFile WriteFileFn,
@@ -45,7 +47,7 @@ func rewriteFiles(
 }
 
 func rewriteFile(
-	fset *token.FileSet, pkgPath Path, f *ast.File, rules RewriteRules, writeFile WriteFileFn,
+	fset *token.FileSet, pkgPath path.Path, f *ast.File, rules RewriteRules, writeFile WriteFileFn,
 ) {
 	changed := false
 	if pkgPathMatch := rules.ExactMatch(pkgPath); pkgPathMatch != nil {
@@ -146,9 +148,9 @@ func rewriteImports(f *ast.File, rules RewriteRules) bool {
 	return changed
 }
 
-func getImportPath(imp *ast.ImportSpec) Path {
+func getImportPath(imp *ast.ImportSpec) path.Path {
 	importPathStr, _ := strconv.Unquote(imp.Path.Value)
-	return NewPath(importPathStr)
+	return path.NewPath(importPathStr)
 }
 
 func getImportName(imp *ast.ImportSpec) string {
@@ -158,7 +160,7 @@ func getImportName(imp *ast.ImportSpec) string {
 	return getImportPath(imp).PkgName()
 }
 
-func getImportedPkgNames(imports []*ast.ImportSpec, skipFilter func(importPath Path) bool) map[string]struct{} {
+func getImportedPkgNames(imports []*ast.ImportSpec, skipFilter func(importPath path.Path) bool) map[string]struct{} {
 	importedPkgNames := make(map[string]struct{}, len(imports))
 	for _, imp := range imports {
 		pkgPath := getImportPath(imp)
@@ -173,8 +175,8 @@ func getImportedPkgNames(imports []*ast.ImportSpec, skipFilter func(importPath P
 	return importedPkgNames
 }
 
-func disambiguateImportName(imports []*ast.ImportSpec, importPath Path) string {
-	importedPkgNames := getImportedPkgNames(imports, func(p Path) bool {
+func disambiguateImportName(imports []*ast.ImportSpec, importPath path.Path) string {
+	importedPkgNames := getImportedPkgNames(imports, func(p path.Path) bool {
 		return importPath.Equal(p)
 	})
 

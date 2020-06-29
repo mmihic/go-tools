@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	"github.com/mmihic/go-tools/pkg/path"
 )
 
 func TestRewritePostMove(t *testing.T) {
@@ -361,13 +362,13 @@ func DoSomethingElse() *Foo { return Wrap(DoOtherThing()) }
 				return
 			}
 
-			rules, err := ParseRewriteRules(nil, tt.rules)
+			rules, err := ParseRewriteRules(tt.rules)
 			if !assert.NoError(t, err) {
 				return
 			}
 
 			var buf bytes.Buffer
-			rewriteFile(fset, NewPath(tt.pkgPath), file, rules, func(filename string, content []byte) error {
+			rewriteFile(fset, path.NewPath(tt.pkgPath), file, rules, func(filename string, content []byte) error {
 				_, err := buf.Write(content)
 				return err
 			})
@@ -377,4 +378,3 @@ func DoSomethingElse() *Foo { return Wrap(DoOtherThing()) }
 		})
 	}
 }
-

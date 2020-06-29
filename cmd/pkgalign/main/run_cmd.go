@@ -12,6 +12,7 @@ import (
 	"go.uber.org/multierr"
 	"gopkg.in/yaml.v2"
 
+	"github.com/mmihic/go-tools/pkg/path"
 	"github.com/mmihic/go-tools/tools/pkgalign"
 )
 
@@ -29,7 +30,7 @@ func (cmd *runCmd) Run() error {
 	}
 
 	type config struct {
-		Rules []string `yaml:"packages"`
+		Rules pkgalign.RewriteRules `yaml:"packages"`
 	}
 
 	var cfg config
@@ -37,11 +38,7 @@ func (cmd *runCmd) Run() error {
 		return fmt.Errorf("unable to parse config: %v", err)
 	}
 
-	pathPrefix := pkgalign.NewPath(cmd.LocalPkgRoot)
-	rules, err := pkgalign.ParseRewriteRules(pathPrefix, cfg.Rules)
-	if err != nil {
-		return err
-	}
+	rules := cfg.Rules.ApplyPrefix(path.NewPath(cmd.LocalPkgRoot))
 
 	var dirs []string
 	if err := filepath.Walk(cmd.Dir, func(path string, info os.FileInfo, err error) error {
@@ -71,7 +68,7 @@ func (cmd *runCmd) Run() error {
 			}
 
 			for _, pkg := range pkgs {
-				pkgPath := pkgalign.NewPath(filepath.Join(cmd.LocalPkgRoot, dir))
+				pkgPath := path.NewPath(filepath.Join(cmd.LocalPkgRoot, dir))
 				pkgalign.Rewrite(fset, pkgPath, pkg, rules)
 			}
 		}()

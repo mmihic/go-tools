@@ -1,4 +1,4 @@
-package pkgalign
+package path
 
 import (
 	"path/filepath"

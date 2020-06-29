@@ -1,4 +1,4 @@
-package pkgalign
+package path
 
 import (
 	"testing"
@@ -28,3 +28,4 @@ func TestPath_Append(t *testing.T) {
 		NewPath("").Append(NewPath("github.com/mmihic/go-tools/tools/pkgalign")),
 		NewPath("github.com/mmihic/go-tools/tools/pkgalign"))
 }
+
