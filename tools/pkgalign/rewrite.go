@@ -13,14 +13,15 @@ import (
 	"go/token"
 	"io/ioutil"
 	"log"
-	"path/filepath"
 	"strconv"
 	"strings"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 // Rewrite rewrites a file to deal with the move of a package from one
 // location to another, along with a possible package rename.
-func Rewrite(fset *token.FileSet, pkgPath string, pkg *ast.Package, rules RewriteRules) {
+func Rewrite(fset *token.FileSet, pkgPath Path, pkg *ast.Package, rules RewriteRules) {
 	files := make([]*ast.File, 0, len(pkg.Files))
 	for _, file := range pkg.Files {
 		files = append(files, file)
@@ -33,7 +34,7 @@ func Rewrite(fset *token.FileSet, pkgPath string, pkg *ast.Package, rules Rewrit
 
 func rewriteFiles(
 	fset *token.FileSet,
-	pkgPath string,
+	pkgPath Path,
 	files []*ast.File,
 	rules RewriteRules,
 	writeFile WriteFileFn,
@@ -44,11 +45,11 @@ func rewriteFiles(
 }
 
 func rewriteFile(
-	fset *token.FileSet, pkgPath string, f *ast.File, rules RewriteRules, writeFile WriteFileFn,
+	fset *token.FileSet, pkgPath Path, f *ast.File, rules RewriteRules, writeFile WriteFileFn,
 ) {
 	changed := false
-	if pkgPathMatch := rules.ExactMatch(NewPath(pkgPath)); pkgPathMatch != nil {
-		if rewritePackage(f, pkgPathMatch) {
+	if pkgPathMatch := rules.ExactMatch(pkgPath); pkgPathMatch != nil {
+		if rewritePackage(fset, f, pkgPathMatch) {
 			changed = true
 		}
 	}
@@ -72,7 +73,7 @@ func rewriteFile(
 	}
 }
 
-func rewritePackage(f *ast.File, rule *RewriteRule) bool {
+func rewritePackage(fset *token.FileSet, f *ast.File, rule *RewriteRule) bool {
 	// Change package decl
 	oldName := f.Name.Name
 	newName := rule.To.PkgName()
@@ -97,6 +98,17 @@ func rewritePackage(f *ast.File, rule *RewriteRule) bool {
 		}
 	}
 
+	// Check to see if we import our new path - if so strip that import.
+	for _, imp := range f.Imports {
+		importPath := getImportPath(imp)
+		if !rule.To.Equal(importPath) {
+			continue
+		}
+
+		astutil.DeleteImport(fset, f, importPath.String())
+		removeImportPrefix(f, getImportName(imp))
+	}
+
 	return true
 }
 
@@ -105,17 +117,13 @@ func rewriteImports(f *ast.File, rules RewriteRules) bool {
 	// references to that import.
 	changed := false
 	for _, imp := range f.Imports {
-		importPathStr, _ := strconv.Unquote(imp.Path.Value)
-		importPath := NewPath(importPathStr)
+		importPath := getImportPath(imp)
 		importMatch := rules.BestMatch(importPath)
 		if importMatch == nil {
 			continue
 		}
 
-		oldName := importPath.PkgName()
-		if imp.Name != nil {
-			oldName = imp.Name.Name
-		}
+		oldName := getImportName(imp)
 
 		rewrittenPath, _ := importMatch.Rewrite(importPath)
 		imp.Path.Value = strconv.Quote(rewrittenPath.String())
@@ -131,7 +139,6 @@ func rewriteImports(f *ast.File, rules RewriteRules) bool {
 			}
 		}
 
-		fmt.Printf("rewriting %30s to %30s as %s\n", importPath, rewrittenPath, newName)
 		rewriteRefs(f, oldName, newName)
 		changed = true
 	}
@@ -139,20 +146,27 @@ func rewriteImports(f *ast.File, rules RewriteRules) bool {
 	return changed
 }
 
+func getImportPath(imp *ast.ImportSpec) Path {
+	importPathStr, _ := strconv.Unquote(imp.Path.Value)
+	return NewPath(importPathStr)
+}
+
+func getImportName(imp *ast.ImportSpec) string {
+	if imp.Name != nil {
+		return imp.Name.Name
+	}
+	return getImportPath(imp).PkgName()
+}
+
 func getImportedPkgNames(imports []*ast.ImportSpec, skipFilter func(importPath Path) bool) map[string]struct{} {
 	importedPkgNames := make(map[string]struct{}, len(imports))
 	for _, imp := range imports {
-		pkgPath, _ := strconv.Unquote(imp.Path.Value)
-		if skipFilter(NewPath(pkgPath)) {
+		pkgPath := getImportPath(imp)
+		if skipFilter(pkgPath) {
 			continue
 		}
 
-		if imp.Name != nil {
-			importedPkgNames[imp.Name.Name] = struct{}{}
-			continue
-		}
-
-		_, importName := filepath.Split(pkgPath)
+		importName := getImportName(imp)
 		importedPkgNames[importName] = struct{}{}
 	}
 
@@ -198,6 +212,48 @@ func rewriteRefs(f *ast.File, oldName, newName string) {
 		}
 		return true
 	})
+}
+
+func removeImportPrefix(f *ast.File, name string) {
+	ast.Inspect(f, func(nth ast.Node) bool {
+		switch n := nth.(type) {
+		case *ast.Field:
+			maybeRemoveImportPrefix(&n.Type, name)
+		case *ast.StarExpr:
+			maybeRemoveImportPrefix(&n.X, name)
+		case *ast.Ellipsis:
+			maybeRemoveImportPrefix(&n.Elt, name)
+		case *ast.ArrayType:
+			maybeRemoveImportPrefix(&n.Elt, name)
+		case *ast.ChanType:
+			maybeRemoveImportPrefix(&n.Value, name)
+		case *ast.MapType:
+			maybeRemoveImportPrefix(&n.Key, name)
+		case *ast.CallExpr:
+			maybeRemoveImportPrefix(&n.Fun, name)
+		}
+		return true
+	})
+}
+
+func maybeRemoveImportPrefix(expr *ast.Expr, name string) {
+	if expr == nil {
+		return
+	}
+
+	sel, ok := (*expr).(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+
+	ident, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return
+	}
+
+	if ident.Name == name {
+		*expr = ast.NewIdent(sel.Sel.Name)
+	}
 }
 
 // WriteFileFn is a function that writes a file.

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRewritePostMove(t *testing.T) {
@@ -299,6 +300,59 @@ func DoSomethingFirst() string  { return second.DoSomething() }
 func DoSomethingSecond() string { return second.DoSomething() }
 `, "\n"),
 		},
+
+		// ----------------
+		{
+			name:
+			"move self into package that is currently being imported; should strip import",
+			pkgPath: "github.com/mmihic/go-tools/pkg/first",
+			src: `
+// +build tools
+package first
+
+import (
+	"github.com/mmihic/go-tools/pkg/other"
+)
+
+type ArrayOfStuff []*other.Foo
+
+type MapOfStuff map[other.Key]*other.Foo
+
+type ChanOfStuff chan<-*other.Foo
+
+type Config struct {
+   other.Foo
+   more *other.Foo
+}
+
+func DoOtherThing(l ...other.Foo) string  { return other.DoSomething() }
+
+func DoSomethingElse() *other.Foo { return other.Wrap(DoOtherThing()) }
+`,
+			rules: []string{
+				"github.com/mmihic/go-tools/pkg/first:github.com/mmihic/go-tools/pkg/other",
+			},
+			want: strings.TrimLeft(`
+// +build tools
+package other
+
+type ArrayOfStuff []*Foo
+
+type MapOfStuff map[Key]*Foo
+
+type ChanOfStuff chan<- *Foo
+
+type Config struct {
+	Foo
+
+	more *Foo
+}
+
+func DoOtherThing(l ...Foo,) string { return DoSomething() }
+
+func DoSomethingElse() *Foo { return Wrap(DoOtherThing()) }
+`, "\n"),
+		},
 	} {
 		t.Run(tt.name, func(_ *testing.T) {
 			fset := token.NewFileSet()
@@ -313,7 +367,7 @@ func DoSomethingSecond() string { return second.DoSomething() }
 			}
 
 			var buf bytes.Buffer
-			rewriteFile(fset, tt.pkgPath, file, rules, func(filename string, content []byte) error {
+			rewriteFile(fset, NewPath(tt.pkgPath), file, rules, func(filename string, content []byte) error {
 				_, err := buf.Write(content)
 				return err
 			})
@@ -323,3 +377,4 @@ func DoSomethingSecond() string { return second.DoSomething() }
 		})
 	}
 }
+

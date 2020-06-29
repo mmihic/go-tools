@@ -61,8 +61,6 @@ func ParseRewriteRules(pathPrefix Path, rulesList []string) (RewriteRules, error
 			return nil, err
 		}
 
-		fmt.Printf("adding rule %s\n", rule)
-
 		rules = append(rules, rule)
 	}
 

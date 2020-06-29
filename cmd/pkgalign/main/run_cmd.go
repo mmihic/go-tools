@@ -71,7 +71,7 @@ func (cmd *runCmd) Run() error {
 			}
 
 			for _, pkg := range pkgs {
-				pkgPath := filepath.Join(cmd.LocalPkgRoot, dir)
+				pkgPath := pkgalign.NewPath(filepath.Join(cmd.LocalPkgRoot, dir))
 				pkgalign.Rewrite(fset, pkgPath, pkg, rules)
 			}
 		}()
