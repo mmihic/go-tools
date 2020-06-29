@@ -1,80 +1,27 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 
-	"golang.org/x/tools/go/packages"
-
-	"github.com/mmihic/go-tools/tools/pkgalign"
+	"github.com/alecthomas/kong"
 )
 
-const (
-	loadAllSyntax = packages.NeedName |
-		packages.NeedFiles |
-		packages.NeedCompiledGoFiles |
-		packages.NeedImports |
-		packages.NeedTypes |
-		packages.NeedTypesSizes |
-		packages.NeedSyntax |
-		packages.NeedTypesInfo |
-		packages.NeedDeps
-)
-
-var (
-	fromPath string
-	toPath   string
-)
+var commands = struct {
+	Run runCmd `cmd:"" help:"runs the rewrite tool"`
+}{}
 
 func main() {
-	flag.StringVar(&fromPath, "from", "", "the original package path")
-	flag.StringVar(&toPath, "to", "", "the new package path")
-	flag.Parse()
-
-	progname := filepath.Base(os.Args[0])
-	args := flag.Args()
-	if len(args) == 0 {
-		_, _ = fmt.Fprintf(os.Stderr, `failed: %s`, progname)
-		os.Exit(1)
-	}
-
-	initial, err := packages.Load(&packages.Config{
-		Mode:  loadAllSyntax,
-		Tests: true,
-	}, args...)
-	if err == nil {
-		if n := packages.PrintErrors(initial); n > 1 {
-			err = fmt.Errorf("%d errors during loading", n)
-		} else if n == 1 {
-			err = fmt.Errorf("error during loading")
-		} else if len(initial) == 0 {
-			err = fmt.Errorf("%s matched no packages", strings.Join(args, " "))
-		}
-	}
-
+	helpOpt := kong.ConfigureHelp(kong.HelpOptions{
+		Tree: true,
+	})
+	parser, err := kong.New(&commands, helpOpt)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
+		panic(err)
 	}
 
-	var wg sync.WaitGroup
-	for _, pkg := range initial {
-		pkg := pkg
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			pkgalign.Rewrite(pkg, []*pkgalign.RewriteRule{
-				{
-					From: fromPath,
-					To:   toPath,
-				},
-			})
-		}()
-	}
+	parser.Model.HelpFlag.Short = 'h'
 
-	wg.Wait()
+	kongCtx, err := parser.Parse(os.Args[1:])
+	parser.FatalIfErrorf(err)
+	parser.FatalIfErrorf(kongCtx.Run())
 }

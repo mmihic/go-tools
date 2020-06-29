@@ -16,36 +16,26 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"golang.org/x/tools/go/packages"
 )
-
-// RewriteRule tells us which imports to rewriteFile.
-type RewriteRule struct {
-	From string
-	To   string
-}
-
-// PkgName returns the name of the package.
-func (rule *RewriteRule) PkgName() string {
-	_, pkgName := filepath.Split(rule.To)
-	return pkgName
-}
 
 // Rewrite rewrites a file to deal with the move of a package from one
 // location to another, along with a possible package rename.
-func Rewrite(pkg *packages.Package, rules []*RewriteRule) {
-	rewriteFiles(pkg.Fset, pkg.PkgPath, pkg.Syntax, rules,
-		func(filename string, content []byte) error {
-			return ioutil.WriteFile(filename, content, 0644)
-		})
+func Rewrite(fset *token.FileSet, pkgPath string, pkg *ast.Package, rules RewriteRules) {
+	files := make([]*ast.File, 0, len(pkg.Files))
+	for _, file := range pkg.Files {
+		files = append(files, file)
+	}
+
+	rewriteFiles(fset, pkgPath, files, rules, func(filename string, content []byte) error {
+		return ioutil.WriteFile(filename, content, 0644)
+	})
 }
 
 func rewriteFiles(
 	fset *token.FileSet,
 	pkgPath string,
 	files []*ast.File,
-	rules []*RewriteRule,
+	rules RewriteRules,
 	writeFile WriteFileFn,
 ) {
 	for _, f := range files {
@@ -54,13 +44,17 @@ func rewriteFiles(
 }
 
 func rewriteFile(
-	fset *token.FileSet, pkgPath string, f *ast.File, rules []*RewriteRule, writeFile WriteFileFn,
+	fset *token.FileSet, pkgPath string, f *ast.File, rules RewriteRules, writeFile WriteFileFn,
 ) {
 	changed := false
-	for _, rule := range rules {
-		if processRule(pkgPath, f, rule) {
+	if pkgPathMatch := rules.ExactMatch(NewPath(pkgPath)); pkgPathMatch != nil {
+		if rewritePackage(f, pkgPathMatch) {
 			changed = true
 		}
+	}
+
+	if rewriteImports(f, rules) {
+		changed = true
 	}
 
 	if !changed {
@@ -78,18 +72,10 @@ func rewriteFile(
 	}
 }
 
-func processRule(pkgPath string, f *ast.File, rule *RewriteRule) bool {
-	if pkgPath == rule.From {
-		return rewritePackage(f, rule)
-	}
-
-	return rewriteImport(f, rule)
-}
-
 func rewritePackage(f *ast.File, rule *RewriteRule) bool {
 	// Change package decl
 	oldName := f.Name.Name
-	newName := rule.PkgName()
+	newName := rule.To.PkgName()
 	f.Name.Name = newName
 
 	// Rewrite the package comments, if any
@@ -114,38 +100,53 @@ func rewritePackage(f *ast.File, rule *RewriteRule) bool {
 	return true
 }
 
-func rewriteImport(f *ast.File, rule *RewriteRule) bool {
-	// Find a non-conflicting alias to use for the package.
-	newName := disambiguateImportName(f.Imports, rule.PkgName())
+func rewriteImports(f *ast.File, rules RewriteRules) bool {
+	// Find the best match for each import, and then use this to rewrite all of the
+	// references to that import.
+	changed := false
 	for _, imp := range f.Imports {
-		path, _ := strconv.Unquote(imp.Path.Value)
-		if path != rule.From {
+		importPathStr, _ := strconv.Unquote(imp.Path.Value)
+		importPath := NewPath(importPathStr)
+		importMatch := rules.BestMatch(importPath)
+		if importMatch == nil {
 			continue
 		}
 
-		imp.Path.Value = strconv.Quote(rule.To)
-		if newName != rule.PkgName() {
+		oldName := importPath.PkgName()
+		if imp.Name != nil {
+			oldName = imp.Name.Name
+		}
+
+		rewrittenPath, _ := importMatch.Rewrite(importPath)
+		imp.Path.Value = strconv.Quote(rewrittenPath.String())
+
+		newName := disambiguateImportName(f.Imports, rewrittenPath)
+		if newName != rewrittenPath.PkgName() {
 			// we need to use an alias to disambiguate
 			imp.Name = &ast.Ident{
 				Name: newName,
 			}
 		}
-		rewriteRefs(f, filepath.Base(rule.From), newName)
-		return true
+		rewriteRefs(f, oldName, newName)
+		changed = true
 	}
 
-	return false
+	return changed
 }
 
-func getImportedPkgNames(imports []*ast.ImportSpec) map[string]struct{} {
+func getImportedPkgNames(imports []*ast.ImportSpec, skipFilter func(importPath Path) bool) map[string]struct{} {
 	importedPkgNames := make(map[string]struct{}, len(imports))
 	for _, imp := range imports {
+		pkgPath, _ := strconv.Unquote(imp.Path.Value)
+		if skipFilter(NewPath(pkgPath)) {
+			continue
+		}
+
 		if imp.Name != nil {
 			importedPkgNames[imp.Name.Name] = struct{}{}
 			continue
 		}
 
-		pkgPath, _ := strconv.Unquote(imp.Path.Value)
 		_, importName := filepath.Split(pkgPath)
 		importedPkgNames[importName] = struct{}{}
 	}
@@ -153,11 +154,13 @@ func getImportedPkgNames(imports []*ast.ImportSpec) map[string]struct{} {
 	return importedPkgNames
 }
 
-func disambiguateImportName(imports []*ast.ImportSpec, originalName string) string {
-	importedPkgNames := getImportedPkgNames(imports)
+func disambiguateImportName(imports []*ast.ImportSpec, importPath Path) string {
+	importedPkgNames := getImportedPkgNames(imports, func(p Path) bool {
+		return importPath.Equal(p)
+	})
 
 	var (
-		name = originalName
+		name = importPath.PkgName()
 		n    = 2
 	)
 
@@ -165,7 +168,7 @@ func disambiguateImportName(imports []*ast.ImportSpec, originalName string) stri
 		if _, conflicts := importedPkgNames[name]; !conflicts {
 			return name
 		}
-		name = fmt.Sprintf("%s%d", originalName, n)
+		name = fmt.Sprintf("%s%d", importPath.PkgName(), n)
 		n++
 	}
 }

@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/alecthomas/kong v0.2.9
 	github.com/apex/log v1.4.0 // indirect
 	github.com/axw/gocov v1.0.0
 	github.com/bmatcuk/doublestar v1.3.1 // indirect
@@ -26,8 +27,9 @@ require (
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
 	github.com/stretchr/testify v1.5.1
 	github.com/urfave/cli v1.22.4 // indirect
+	go.uber.org/multierr v1.5.0
 	golang.org/x/tools v0.0.0-20200626171337-aa94e735be7f
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
-	gopkg.in/yaml.v2 v2.3.0 // indirect
+	gopkg.in/yaml.v2 v2.3.0
 )
