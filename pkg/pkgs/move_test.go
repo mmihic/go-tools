@@ -8,8 +8,8 @@ import (
 	"github.com/mmihic/go-tools/pkg/path"
 )
 
-func TestPackages_BestMatch(t *testing.T) {
-	rules := Packages{
+func TestMoves_BestMatch(t *testing.T) {
+	rules := Moves{
 		{
 			From: path.NewPath("github.com/mmihic/go-tools/pkg/first"),
 			To:   path.NewPath("github.com/mmihic/go-tools/pkg/other"),
@@ -44,8 +44,8 @@ func TestPackages_BestMatch(t *testing.T) {
 	require.Nil(t, match)
 }
 
-func TestPackages_ExactMatch(t *testing.T) {
-	rules := Packages{
+func TestMoves_ExactMatch(t *testing.T) {
+	rules := Moves{
 		{
 			From: path.NewPath("github.com/mmihic/go-tools/pkg/first"),
 			To:   path.NewPath("github.com/mmihic/go-tools/pkg/other"),
