@@ -1,4 +1,4 @@
-package pkgalign
+package pkgs
 
 import (
 	"testing"
@@ -8,8 +8,8 @@ import (
 	"github.com/mmihic/go-tools/pkg/path"
 )
 
-func TestRewriteRules_BestMatch(t *testing.T) {
-	rules := RewriteRules{
+func TestPackages_BestMatch(t *testing.T) {
+	rules := Packages{
 		{
 			From: path.NewPath("github.com/mmihic/go-tools/pkg/first"),
 			To:   path.NewPath("github.com/mmihic/go-tools/pkg/other"),
@@ -44,8 +44,8 @@ func TestRewriteRules_BestMatch(t *testing.T) {
 	require.Nil(t, match)
 }
 
-func TestRewriteRules_ExactMatch(t *testing.T) {
-	rules := RewriteRules{
+func TestPackages_ExactMatch(t *testing.T) {
+	rules := Packages{
 		{
 			From: path.NewPath("github.com/mmihic/go-tools/pkg/first"),
 			To:   path.NewPath("github.com/mmihic/go-tools/pkg/other"),
